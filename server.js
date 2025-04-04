@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const authRoutes = require('./routes/authRoutes');
+const cookieParser = require('cookie-parser');
 
 // Load environment variables
 dotenv.config();
@@ -10,14 +12,21 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true // This allows cookies to be sent cross-origin
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); // Add cookie parser middleware
 
 // Welcome route
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Netflix Clone API' });
 });
+
+// Mount routers
+app.use('/api/auth', authRoutes);
 
 // MongoDB Connection
 const connectDB = async () => {
@@ -32,6 +41,17 @@ const connectDB = async () => {
 
 // Connect to MongoDB
 connectDB();
+
+// Error handler middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  
+  res.status(500).json({
+    success: false,
+    message: 'Server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
 
 // Port configuration
 const PORT = process.env.PORT || 5000;
