@@ -1,13 +1,18 @@
-const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const authRoutes = require('./routes/authRoutes');
-const profileRoutes = require('./routes/profileRoutes'); 
-const cookieParser = require('cookie-parser');
-
-// Load environment variables
 dotenv.config();
+const cookieParser = require('cookie-parser');
+const express = require('express');
+
+// Import route files
+const authRoutes = require('./routes/authRoutes');
+const contentRoutes = require('./routes/contentRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
+const myListRoutes = require('./routes/myListRoutes');
+const recommendationRoutes = require('./routes/recommendationRoutes');
+
 
 // Initialize Express app
 const app = express();
@@ -28,7 +33,11 @@ app.get('/', (req, res) => {
 
 // Mount routers
 app.use('/api/auth', authRoutes);
-app.use('/api/profiles', profileRoutes); // Add profile routes
+app.use('/api/content', contentRoutes);
+app.use('/api/profiles', profileRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/mylist', myListRoutes);
+app.use('/api/recommendations', recommendationRoutes);
 
 // MongoDB Connection
 const connectDB = async () => {

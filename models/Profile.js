@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const ProfileSchema = new mongoose.Schema({
-  user: {
+  owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -10,21 +10,29 @@ const ProfileSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Profile name is required'],
     trim: true,
-    maxlength: [50, 'Profile name cannot be more than 50 characters']
+    maxlength: [50, 'Name cannot be more than 50 characters']
   },
   avatar: {
     type: Number,
     min: 1,
-    max: 4, // We have 4 avatar options as per the requirements
-    required: true
+    max: 4,
+    default: () => Math.floor(Math.random() * 4) + 1 // Random avatar between 1-4
   },
   createdAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  // Content added to "My List"
+  myList: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Content'
+  }]
 });
 
-// Compound index to ensure a user can't create multiple profiles with the same name
-ProfileSchema.index({ user: 1, name: 1 }, { unique: true });
+// Make sure user doesn't exceed 5 profiles
+ProfileSchema.statics.checkProfileLimit = async function(userId) {
+  const count = await this.countDocuments({ owner: userId });
+  return count < 5;
+};
 
 module.exports = mongoose.model('Profile', ProfileSchema);

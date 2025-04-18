@@ -1,206 +1,169 @@
 const Profile = require('../models/Profile');
 const User = require('../models/User');
 
-// Helper function to get random avatar number (1-4)
-const getRandomAvatar = () => Math.floor(Math.random() * 4) + 1;
+// @desc    Get all profiles for a user
+// @route   GET /api/profiles
+// @access  Private
+exports.getProfiles = async (req, res) => {
+  try {
+    const profiles = await Profile.find({ owner: req.user._id })
+      .sort({ createdAt: -1 });
+    
+    res.status(200).json({
+      success: true,
+      count: profiles.length,
+      data: profiles
+    });
+  } catch (error) {
+    console.error('Error fetching profiles:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
+  }
+};
 
 // @desc    Create a new profile
 // @route   POST /api/profiles
 // @access  Private
 exports.createProfile = async (req, res) => {
   try {
-    // Check if user already has 5 profiles
-    const profileCount = await Profile.countDocuments({ user: req.user.id });
+    // Check if user has reached the profile limit
+    const canCreate = await Profile.checkProfileLimit(req.user._id);
     
-    if (profileCount >= 5) {
+    if (!canCreate) {
       return res.status(400).json({
         success: false,
-        message: 'Maximum profile limit (5) reached'
+        message: 'You have reached the maximum number of profiles (5)'
       });
     }
-
-    // Get profile name from request body
+    
     const { name } = req.body;
     
     if (!name) {
       return res.status(400).json({
         success: false,
-        message: 'Profile name is required'
+        message: 'Please provide a name for the profile'
       });
     }
-
-    // Create profile with random avatar
+    
+    // Create new profile
     const profile = await Profile.create({
-      user: req.user.id,
-      name,
-      avatar: getRandomAvatar()
+      owner: req.user._id,
+      name
     });
-
+    
     res.status(201).json({
       success: true,
       data: profile
     });
-  } catch (err) {
-    // Handle duplicate profile name
-    if (err.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: 'Profile with this name already exists for this user'
-      });
-    }
-
+  } catch (error) {
+    console.error('Error creating profile:', error);
     res.status(500).json({
       success: false,
-      message: err.message
+      message: 'Server Error'
     });
   }
 };
 
-// @desc    Get all profiles for current user
-// @route   GET /api/profiles
-// @access  Private
-exports.getProfiles = async (req, res) => {
-  try {
-    const profiles = await Profile.find({ user: req.user.id }).sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: profiles.length,
-      data: profiles
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-};
-
-// @desc    Get single profile
+// @desc    Get a single profile
 // @route   GET /api/profiles/:id
 // @access  Private
 exports.getProfile = async (req, res) => {
   try {
-    const profile = await Profile.findById(req.params.id);
-
+    const profile = await Profile.findOne({
+      _id: req.params.id,
+      owner: req.user._id
+    });
+    
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: 'Profile not found'
+        message: 'Profile not found or does not belong to you'
       });
     }
-
-    // Check if profile belongs to user
-    if (profile.user.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to access this profile'
-      });
-    }
-
+    
     res.status(200).json({
       success: true,
       data: profile
     });
-  } catch (err) {
+  } catch (error) {
+    console.error('Error fetching profile:', error);
     res.status(500).json({
       success: false,
-      message: err.message
+      message: 'Server Error'
     });
   }
 };
 
-// @desc    Update profile
+// @desc    Update a profile
 // @route   PUT /api/profiles/:id
 // @access  Private
 exports.updateProfile = async (req, res) => {
   try {
-    // Only allow name to be updated
     const { name } = req.body;
     
     if (!name) {
       return res.status(400).json({
         success: false,
-        message: 'Profile name is required'
+        message: 'Please provide a name for the profile'
       });
     }
-
-    let profile = await Profile.findById(req.params.id);
-
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: 'Profile not found'
-      });
-    }
-
-    // Check if profile belongs to user
-    if (profile.user.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this profile'
-      });
-    }
-
-    // Update profile
-    profile = await Profile.findByIdAndUpdate(
-      req.params.id,
+    
+    // Find and update profile
+    const profile = await Profile.findOneAndUpdate(
+      { _id: req.params.id, owner: req.user._id },
       { name },
       { new: true, runValidators: true }
     );
-
+    
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found or does not belong to you'
+      });
+    }
+    
     res.status(200).json({
       success: true,
       data: profile
     });
-  } catch (err) {
-    // Handle duplicate profile name
-    if (err.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: 'Profile with this name already exists for this user'
-      });
-    }
-
+  } catch (error) {
+    console.error('Error updating profile:', error);
     res.status(500).json({
       success: false,
-      message: err.message
+      message: 'Server Error'
     });
   }
 };
 
-// @desc    Delete profile
+// @desc    Delete a profile
 // @route   DELETE /api/profiles/:id
 // @access  Private
 exports.deleteProfile = async (req, res) => {
   try {
-    const profile = await Profile.findById(req.params.id);
-
+    // Find and delete profile
+    const profile = await Profile.findOneAndDelete({
+      _id: req.params.id,
+      owner: req.user._id
+    });
+    
     if (!profile) {
       return res.status(404).json({
         success: false,
-        message: 'Profile not found'
+        message: 'Profile not found or does not belong to you'
       });
     }
-
-    // Check if profile belongs to user
-    if (profile.user.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this profile'
-      });
-    }
-
-    await profile.deleteOne();
-
+    
     res.status(200).json({
       success: true,
       data: {}
     });
-  } catch (err) {
+  } catch (error) {
+    console.error('Error deleting profile:', error);
     res.status(500).json({
       success: false,
-      message: err.message
+      message: 'Server Error'
     });
   }
 };
