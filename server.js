@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/authRoutes');
+const profileRoutes = require('./routes/profileRoutes'); 
 const cookieParser = require('cookie-parser');
 
 // Load environment variables
@@ -27,6 +28,7 @@ app.get('/', (req, res) => {
 
 // Mount routers
 app.use('/api/auth', authRoutes);
+app.use('/api/profiles', profileRoutes); // Add profile routes
 
 // MongoDB Connection
 const connectDB = async () => {
