@@ -9,7 +9,9 @@ const {
   getContentById,
   getUserReviewedContent,
   refreshContent,
-  createContent
+  createContent,
+  getAllMovieContent,
+  getAllTVContent
 } = require('../controllers/contentController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -38,6 +40,10 @@ router.get('/genre/:genreId', getContentByGenre);
 
 // Get user's reviewed content
 router.get('/reviewed', getUserReviewedContent);
+
+// Get all movies and TV shows
+router.get('/movies', getAllMovieContent);
+router.get('/tv', getAllTVContent);
 
 // Get content details by ID
 router.get('/:id', getContentById);

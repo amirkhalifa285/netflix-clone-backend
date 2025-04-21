@@ -35,4 +35,7 @@ ProfileSchema.statics.checkProfileLimit = async function(userId) {
   return count < 5;
 };
 
+// Add an index for name uniqueness per owner
+ProfileSchema.index({ owner: 1, name: 1 }, { unique: true });
+
 module.exports = mongoose.model('Profile', ProfileSchema);

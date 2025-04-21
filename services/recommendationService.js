@@ -1,169 +1,186 @@
+// services/recommendationService.js
 const Content = require('../models/Content');
 const Review = require('../models/Review');
-const natural = require('natural'); // You'll need to install this npm package
-const { TfIdf } = natural;
+const Profile = require('../models/Profile');
+const mongoose = require('mongoose');
 
+/**
+ * Simple recommendation service based on:
+ * 1. Content rated 3+ stars
+ * 2. Content added to My List
+ */
 const recommendationService = {
-  // Generate content recommendations for a user profile
-  getRecommendationsForProfile: async (profileId, limit = 10) => {
+  /**
+   * Get recommendations for a profile based on their reviews and My List
+   * @param {string} profileId - The profile ID to get recommendations for
+   * @param {number} limit - Maximum number of recommendations to return
+   * @param {string} type - Optional content type filter ('movie' or 'tv')
+   * @returns {Promise<Array>} Array of recommended content
+   */
+  getRecommendationsForProfile: async (profileId, limit = 10, type = null) => {
     try {
-      // Get the profile's reviews
-      const profileReviews = await Review.find({ profile: profileId })
-        .populate('content');
+      console.log(`Generating recommendations for profile: ${profileId}, type: ${type}, limit: ${limit}`);
       
-      // If the profile has no reviews, return popular content
-      if (profileReviews.length === 0) {
-        return await Content.find()
-          .sort({ popularity: -1 })
-          .limit(limit);
+      // Find the profile with populated myList
+      const profile = await Profile.findById(profileId).populate('myList');
+      
+      if (!profile) {
+        console.log(`Profile not found: ${profileId}`);
+        throw new Error('Profile not found');
       }
       
-      // Extract genres and keywords from positively reviewed content (rating >= 3)
-      const likedContent = profileReviews
-        .filter(review => review.rating >= 3)
-        .map(review => review.content);
+      // Get the profile's reviews with populated content
+      const profileReviews = await Review.find({ profile: profileId }).populate('content');
+      console.log(`Found ${profileReviews.length} reviews for profile`);
       
-      // If no positively reviewed content, return popular content
-      if (likedContent.length === 0) {
-        return await Content.find()
-          .sort({ popularity: -1 })
-          .limit(limit);
-      }
+      // Collect content that the user has already interacted with (to exclude from recommendations)
+      const interactedContentIds = new Set();
       
-      // Extract genres and keywords
-      const likedGenres = new Map();
-      const likedKeywords = new Map();
+      // Track genre preferences
+      const genreScores = {};
       
-      likedContent.forEach(content => {
-        // Count genres
-        content.genres.forEach(genre => {
-          const count = likedGenres.get(genre.id) || 0;
-          likedGenres.set(genre.id, count + 1);
-        });
-        
-        // Count keywords
-        if (content.keywords) {
-          content.keywords.forEach(keyword => {
-            const count = likedKeywords.get(keyword.id) || 0;
-            likedKeywords.set(keyword.id, count + 1);
-          });
+      // Process reviews to find genre preferences and already-seen content
+      profileReviews.forEach(review => {
+        if (review.content && review.content._id) {
+          // Add to interacted content (to exclude from recommendations)
+          interactedContentIds.add(review.content._id.toString());
+          
+          // Only consider content rated 3 stars or higher for preferences
+          if (review.rating >= 3 && review.content.genres) {
+            review.content.genres.forEach(genre => {
+              if (genre && genre.id) {
+                genreScores[genre.id] = (genreScores[genre.id] || 0) + 1;
+              }
+            });
+          }
         }
       });
       
-      // Sort genres and keywords by frequency
-      const sortedGenres = [...likedGenres.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(entry => entry[0]);
-      
-      const sortedKeywords = [...likedKeywords.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(entry => entry[0]);
-      
-      // Get content IDs that the profile has already seen/reviewed
-      const reviewedContentIds = profileReviews.map(review => 
-        review.content._id.toString()
-      );
-      
-      // Create TF-IDF for content similarity
-      const tfidf = new TfIdf();
-      
-      // Add reviewed content documents to the corpus
-      likedContent.forEach((content, index) => {
-        // Create document text from title, overview, genres, and keywords
-        let docText = `${content.title} ${content.overview}`;
+      // Process My List items
+      if (profile.myList && profile.myList.length > 0) {
+        // Function to safely get content object
+        const getContentObject = (item) => {
+          // If item is already populated
+          if (typeof item === 'object' && item !== null && item._id) {
+            return item;
+          }
+          // If item is just an ID string or ObjectId
+          return null;
+        };
         
-        // Add genres
-        content.genres.forEach(genre => {
-          docText += ` ${genre.name}`;
-        });
-        
-        // Add keywords if available
-        if (content.keywords) {
-          content.keywords.forEach(keyword => {
-            docText += ` ${keyword.name}`;
-          });
-        }
-        
-        // Add to TF-IDF corpus
-        tfidf.addDocument(docText);
-      });
-      
-      // Get all content not already reviewed by the profile
-      const allContent = await Content.find({
-        _id: { $nin: reviewedContentIds }
-      });
-      
-      // Calculate similarity scores for each content
-      const scoredContent = allContent.map(content => {
-        // Create document text for this content
-        let docText = `${content.title} ${content.overview}`;
-        
-        // Add genres
-        content.genres.forEach(genre => {
-          docText += ` ${genre.name}`;
-        });
-        
-        // Add keywords if available
-        if (content.keywords) {
-          content.keywords.forEach(keyword => {
-            docText += ` ${keyword.name}`;
-          });
-        }
-        
-        // Calculate average similarity to liked content
-        let totalSimilarity = 0;
-        let maxSimilarity = 0;
-        
-        likedContent.forEach((likedItem, index) => {
-          const similarity = tfidf.tfidfs(docText, index);
-          totalSimilarity += similarity;
-          maxSimilarity = Math.max(maxSimilarity, similarity);
-        });
-        
-        const avgSimilarity = likedContent.length > 0 
-          ? totalSimilarity / likedContent.length 
-          : 0;
-        
-        // Genre bonus: +0.2 for each matching genre in top 3
-        let genreBonus = 0;
-        content.genres.forEach(genre => {
-          if (sortedGenres.slice(0, 3).includes(genre.id)) {
-            genreBonus += 0.2;
+        profile.myList.forEach(item => {
+          // Add to interacted content list
+          const contentId = typeof item === 'object' ? item._id : item;
+          if (contentId) {
+            interactedContentIds.add(contentId.toString());
+          }
+          
+          // Get genres from My List item if it's a populated object
+          const contentObj = getContentObject(item);
+          if (contentObj && contentObj.genres) {
+            contentObj.genres.forEach(genre => {
+              if (genre && genre.id) {
+                genreScores[genre.id] = (genreScores[genre.id] || 0) + 1;
+              }
+            });
           }
         });
+      }
+      
+      console.log('Genre preferences:', genreScores);
+      
+      // If we have no preferences, return popular content
+      if (Object.keys(genreScores).length === 0) {
+        console.log('No genre preferences found, returning popular content');
+        const query = type ? { type } : {};
+        return await Content.find(query)
+          .sort({ popularity: -1 })
+          .limit(limit);
+      }
+      
+      // Sort genres by preference score
+      const sortedGenres = Object.entries(genreScores)
+        .sort((a, b) => b[1] - a[1])
+        .map(entry => parseInt(entry[0]));
         
-        // Keyword bonus: +0.1 for each matching keyword in top 5
-        let keywordBonus = 0;
-        if (content.keywords) {
-          content.keywords.forEach(keyword => {
-            if (sortedKeywords.slice(0, 5).includes(keyword.id)) {
-              keywordBonus += 0.1;
-            }
-          });
+      console.log('Top genres:', sortedGenres.slice(0, 3));
+      
+      // Build query for recommendations
+      const query = {};
+      
+      // Add type filter if specified
+      if (type) {
+        query.type = type;
+      }
+      
+      // Convert interaction IDs to ObjectIds
+      const interactedIds = Array.from(interactedContentIds)
+        .map(id => {
+          try {
+            return mongoose.Types.ObjectId(id);
+          } catch (err) {
+            return null;
+          }
+        })
+        .filter(id => id !== null);
+      
+      // Exclude content the user has already interacted with
+      if (interactedIds.length > 0) {
+        query._id = { $nin: interactedIds };
+      }
+      
+      // Get recommendations based on top 3 genres
+      const favoriteGenres = sortedGenres.slice(0, 3);
+      query['genres.id'] = { $in: favoriteGenres };
+      
+      console.log('Executing recommendation query:', JSON.stringify(query));
+      
+      // Get genre-based recommendations
+      let recommendations = await Content.find(query)
+        .sort({ popularity: -1 })
+        .limit(limit);
+      
+      console.log(`Found ${recommendations.length} genre-based recommendations`);
+      
+      // If we don't have enough genre-based recommendations, add popular content
+      if (recommendations.length < limit) {
+        const remainingCount = limit - recommendations.length;
+        console.log(`Need ${remainingCount} more recommendations, fetching popular content`);
+        
+        // Exclude already recommended content
+        const recommendedIds = recommendations.map(item => item._id);
+        const excludeIds = [...interactedIds, ...recommendedIds];
+        
+        const popularQuery = type ? { type } : {};
+        if (excludeIds.length > 0) {
+          popularQuery._id = { $nin: excludeIds };
         }
         
-        // Popularity factor (normalized between 0 and 0.5)
-        const popularityFactor = content.popularity / 20; // Assuming max popularity around 1000
+        const additionalRecommendations = await Content.find(popularQuery)
+          .sort({ popularity: -1 })
+          .limit(remainingCount);
+          
+        console.log(`Found ${additionalRecommendations.length} additional popular recommendations`);
         
-        // Final score
-        const score = avgSimilarity + maxSimilarity + genreBonus + keywordBonus + popularityFactor;
-        
-        return {
-          content,
-          score
-        };
-      });
+        recommendations = [...recommendations, ...additionalRecommendations];
+      }
       
-      // Sort by score and take top 'limit' results
-      const recommendations = scoredContent
-        .sort((a, b) => b.score - a.score)
-        .slice(0, limit)
-        .map(item => item.content);
-      
+      console.log(`Returning ${recommendations.length} total recommendations`);
       return recommendations;
+      
     } catch (error) {
       console.error('Error generating recommendations:', error);
-      throw new Error('Failed to generate recommendations');
+      
+      // Fallback to popular content if any error occurs
+      try {
+        const query = type ? { type } : {};
+        return await Content.find(query)
+          .sort({ popularity: -1 })
+          .limit(limit);
+      } catch (fallbackError) {
+        console.error('Error in fallback recommendation:', fallbackError);
+        return []; // Last resort
+      }
     }
   }
 };

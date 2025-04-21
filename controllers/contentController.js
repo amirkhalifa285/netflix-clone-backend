@@ -418,3 +418,143 @@ exports.createContent = async (req, res) => {
     });
   }
 };
+
+// @desc    Fetch all movie content categories
+// @route   GET /api/content/movies
+// @access  Private
+exports.getAllMovieContent = async (req, res) => {
+  try {
+    const limit = req.query.limit || 10;
+    
+    // Fetch all content categories but only for movies
+    const [featured, newest, popular, mostReviewed, highestRated] = await Promise.all([
+      Content.find({ type: 'movie', featured: true })
+        .select('title overview backdropPath posterPath type releaseDate voteAverage')
+        .limit(parseInt(limit)),
+      Content.find({ type: 'movie' })
+        .sort({ releaseDate: -1 })
+        .limit(parseInt(limit))
+        .select('title posterPath backdropPath type releaseDate voteAverage'),
+      Content.find({ type: 'movie' })
+        .sort({ popularity: -1 })
+        .limit(parseInt(limit))
+        .select('title posterPath backdropPath type releaseDate voteAverage popularity'),
+      getContentWithReviews({ type: 'movie' }, parseInt(limit)),
+      getContentWithReviews({ type: 'movie' }, parseInt(limit))
+    ]);
+    
+    // Sort and filter highest rated content
+    const filteredHighestRated = highestRated
+      .filter(item => item.reviewCount > 0)
+      .sort((a, b) => b.averageRating - a.averageRating);
+      
+    // Sort most reviewed content
+    const sortedMostReviewed = mostReviewed.sort((a, b) => b.reviewCount - a.reviewCount);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        featured,
+        newest,
+        popular,
+        mostReviewed: sortedMostReviewed.map(item => ({
+          _id: item._id,
+          title: item.title,
+          posterPath: item.posterPath,
+          backdropPath: item.backdropPath,
+          type: item.type,
+          releaseDate: item.releaseDate,
+          voteAverage: item.voteAverage,
+          reviewCount: item.reviewCount
+        })),
+        highestRated: filteredHighestRated.map(item => ({
+          _id: item._id,
+          title: item.title,
+          posterPath: item.posterPath,
+          backdropPath: item.backdropPath,
+          type: item.type,
+          releaseDate: item.releaseDate,
+          voteAverage: item.voteAverage,
+          averageRating: item.averageRating,
+          reviewCount: item.reviewCount
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching movie content:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
+  }
+};
+
+// @desc    Fetch all TV show content categories
+// @route   GET /api/content/tv
+// @access  Private
+exports.getAllTVContent = async (req, res) => {
+  try {
+    const limit = req.query.limit || 10;
+    
+    // Fetch all content categories but only for TV shows
+    const [featured, newest, popular, mostReviewed, highestRated] = await Promise.all([
+      Content.find({ type: 'tv', featured: true })
+        .select('title overview backdropPath posterPath type releaseDate voteAverage')
+        .limit(parseInt(limit)),
+      Content.find({ type: 'tv' })
+        .sort({ releaseDate: -1 })
+        .limit(parseInt(limit))
+        .select('title posterPath backdropPath type releaseDate voteAverage'),
+      Content.find({ type: 'tv' })
+        .sort({ popularity: -1 })
+        .limit(parseInt(limit))
+        .select('title posterPath backdropPath type releaseDate voteAverage popularity'),
+      getContentWithReviews({ type: 'tv' }, parseInt(limit)),
+      getContentWithReviews({ type: 'tv' }, parseInt(limit))
+    ]);
+    
+    // Sort and filter highest rated content
+    const filteredHighestRated = highestRated
+      .filter(item => item.reviewCount > 0)
+      .sort((a, b) => b.averageRating - a.averageRating);
+      
+    // Sort most reviewed content
+    const sortedMostReviewed = mostReviewed.sort((a, b) => b.reviewCount - a.reviewCount);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        featured,
+        newest,
+        popular,
+        mostReviewed: sortedMostReviewed.map(item => ({
+          _id: item._id,
+          title: item.title,
+          posterPath: item.posterPath,
+          backdropPath: item.backdropPath,
+          type: item.type,
+          releaseDate: item.releaseDate,
+          voteAverage: item.voteAverage,
+          reviewCount: item.reviewCount
+        })),
+        highestRated: filteredHighestRated.map(item => ({
+          _id: item._id,
+          title: item.title,
+          posterPath: item.posterPath,
+          backdropPath: item.backdropPath,
+          type: item.type,
+          releaseDate: item.releaseDate,
+          voteAverage: item.voteAverage,
+          averageRating: item.averageRating,
+          reviewCount: item.reviewCount
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching TV content:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
+  }
+};

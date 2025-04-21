@@ -28,6 +28,14 @@ exports.getProfiles = async (req, res) => {
 // @access  Private
 exports.createProfile = async (req, res) => {
   try {
+    // Verify user exists and is authenticated
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated or user session invalid'
+      });
+    }
+
     // Check if user has reached the profile limit
     const canCreate = await Profile.checkProfileLimit(req.user._id);
     
@@ -47,6 +55,19 @@ exports.createProfile = async (req, res) => {
       });
     }
     
+    // Check if profile with same name already exists
+    const existingProfile = await Profile.findOne({
+      owner: req.user._id,
+      name: name
+    });
+
+    if (existingProfile) {
+      return res.status(400).json({
+        success: false,
+        message: 'A profile with this name already exists for your account'
+      });
+    }
+
     // Create new profile
     const profile = await Profile.create({
       owner: req.user._id,
@@ -59,6 +80,15 @@ exports.createProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating profile:', error);
+    
+    // Check if this is a duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'A profile with this name already exists for your account'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Server Error'
@@ -130,6 +160,15 @@ exports.updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating profile:', error);
+    
+    // Check if this is a duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'A profile with this name already exists for your account'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Server Error'
