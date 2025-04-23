@@ -1,3 +1,4 @@
+// contentRoutes.js - updated file
 const express = require('express');
 const {
   getFeaturedContent,
@@ -11,7 +12,9 @@ const {
   refreshContent,
   createContent,
   getAllMovieContent,
-  getAllTVContent
+  getAllTVContent,
+  getBrowseContent, // New controller function
+  searchContent     // New controller function
 } = require('../controllers/contentController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -44,6 +47,10 @@ router.get('/reviewed', getUserReviewedContent);
 // Get all movies and TV shows
 router.get('/movies', getAllMovieContent);
 router.get('/tv', getAllTVContent);
+
+// New routes for browse/search page
+router.get('/browse', getBrowseContent);
+router.get('/search', searchContent);
 
 // Get content details by ID
 router.get('/:id', getContentById);

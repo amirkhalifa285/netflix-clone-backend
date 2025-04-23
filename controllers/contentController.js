@@ -300,6 +300,150 @@ exports.getUserReviewedContent = async (req, res) => {
   }
 };
 
+// @desc    Get all content for browse page with filtering options
+// @route   GET /api/content/browse
+// @access  Private
+exports.getBrowseContent = async (req, res) => {
+  try {
+    // Extract all available content data for the browse page
+    const limit = req.query.limit || 100;
+    
+    // Get all content with minimal fields for efficiency
+    const allContent = await Content.find({})
+      .select('title overview posterPath backdropPath type releaseDate voteAverage genres original_language popularity')
+      .limit(parseInt(limit));
+    
+    // Extract unique genres from all content
+    const genres = new Set(['All Genres']);
+    allContent.forEach(content => {
+      if (Array.isArray(content.genres)) {
+        content.genres.forEach(genre => {
+          if (typeof genre === 'string') {
+            genres.add(genre);
+          } else if (genre && genre.name) {
+            genres.add(genre.name);
+          }
+        });
+      }
+    });
+    
+    // Extract unique languages
+    const languages = new Set(['All Languages']);
+    allContent.forEach(content => {
+      if (content.original_language) {
+        languages.add(content.original_language);
+      }
+    });
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        content: allContent,
+        availableGenres: Array.from(genres),
+        availableLanguages: Array.from(languages)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching browse content:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
+  }
+};
+
+// @desc    Search content with filters
+// @route   GET /api/content/search
+// @access  Private
+exports.searchContent = async (req, res) => {
+  try {
+    const {
+      searchTerm,
+      genre = 'All Genres',
+      language = 'All Languages',
+      sortBy = 'popularity',
+      type,
+      page = 1,
+      limit = 20
+    } = req.query;
+    
+    // Build the query object with AND logic
+    const query = {};
+    
+    // Add type filter if specified
+    if (type && ['movie', 'tv'].includes(type)) {
+      query.type = type;
+    }
+    
+    // Add search term filter
+    if (searchTerm && searchTerm.trim() !== '') {
+      query.$or = [
+        { title: { $regex: searchTerm, $options: 'i' } },
+        { overview: { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+    
+    // Add genre filter - FIXED to only use the correct path
+    if (genre && genre !== 'All Genres') {
+      // Only search in the name field of genres array objects
+      query['genres.name'] = genre;
+    }
+    
+    // Add language filter
+    if (language && language !== 'All Languages') {
+      query.original_language = language;
+    }
+    
+    // Log the query for debugging
+    console.log('Search query:', JSON.stringify(query, null, 2));
+    
+    // Determine sort order
+    let sortOptions = {};
+    switch(sortBy) {
+      case 'Title':
+        sortOptions = { title: 1 };
+        break;
+      case 'Year':
+        sortOptions = { releaseDate: -1 };
+        break;
+      case 'Rating':
+        sortOptions = { voteAverage: -1 };
+        break;
+      default:
+        // Default to 'Suggestions For You' (popularity)
+        sortOptions = { popularity: -1 };
+    }
+    
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Execute the query
+    const content = await Content.find(query)
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .select('title overview posterPath backdropPath type releaseDate voteAverage genres');
+    
+    // Get total count for pagination
+    const total = await Content.countDocuments(query);
+    
+    res.status(200).json({
+      success: true,
+      count: content.length,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / parseInt(limit)),
+      data: content
+    });
+  } catch (error) {
+    console.error('Error searching content:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error: ' + error.message
+    });
+  }
+};
+
 // @desc    Refresh content from TMDB API
 // @route   POST /api/content/refresh
 // @access  Private/Admin
