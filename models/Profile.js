@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const ProfileSchema = new mongoose.Schema({
-  owner: {
+  user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
@@ -31,11 +31,11 @@ const ProfileSchema = new mongoose.Schema({
 
 // Make sure user doesn't exceed 5 profiles
 ProfileSchema.statics.checkProfileLimit = async function(userId) {
-  const count = await this.countDocuments({ owner: userId });
+  const count = await this.countDocuments({ user: userId });
   return count < 5;
 };
 
-// Add an index for name uniqueness per owner
-ProfileSchema.index({ owner: 1, name: 1 }, { unique: true });
+// Add an index for name uniqueness per user
+ProfileSchema.index({ user: 1, name: 1 }, { unique: true });
 
 module.exports = mongoose.model('Profile', ProfileSchema);

@@ -6,7 +6,7 @@ const User = require('../models/User');
 // @access  Private
 exports.getProfiles = async (req, res) => {
   try {
-    const profiles = await Profile.find({ owner: req.user._id })
+    const profiles = await Profile.find({ user: req.user._id })
       .sort({ createdAt: -1 });
     
     res.status(200).json({
@@ -36,10 +36,8 @@ exports.createProfile = async (req, res) => {
       });
     }
 
-    // Check if user has reached the profile limit
-    const canCreate = await Profile.checkProfileLimit(req.user._id);
-    
-    if (!canCreate) {
+    const count = await Profile.countDocuments({ user: req.user._id });
+    if (count >= 5) {
       return res.status(400).json({
         success: false,
         message: 'You have reached the maximum number of profiles (5)'
@@ -55,10 +53,10 @@ exports.createProfile = async (req, res) => {
       });
     }
     
-    // Check if profile with same name already exists
+    // Check if profile with same name already exists FOR THIS USER
     const existingProfile = await Profile.findOne({
-      owner: req.user._id,
-      name: name
+      user: req.user._id,
+      name: name.trim()
     });
 
     if (existingProfile) {
@@ -68,11 +66,12 @@ exports.createProfile = async (req, res) => {
       });
     }
 
-    // Create new profile
-    const profile = await Profile.create({
-      owner: req.user._id,
-      name
+    const profile = new Profile({
+      user: req.user._id,
+      name: name.trim()
     });
+    
+    await profile.save();
     
     res.status(201).json({
       success: true,
@@ -83,10 +82,12 @@ exports.createProfile = async (req, res) => {
     
     // Check if this is a duplicate key error
     if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        message: 'A profile with this name already exists for your account'
-      });
+      if (error.keyPattern && error.keyPattern.user && error.keyPattern.name) {
+        return res.status(400).json({
+          success: false,
+          message: 'A profile with this name already exists for your account'
+        });
+      }
     }
     
     res.status(500).json({
@@ -103,7 +104,7 @@ exports.getProfile = async (req, res) => {
   try {
     const profile = await Profile.findOne({
       _id: req.params.id,
-      owner: req.user._id
+      user: req.user._id
     });
     
     if (!profile) {
@@ -140,10 +141,23 @@ exports.updateProfile = async (req, res) => {
       });
     }
     
-    // Find and update profile
+    // Check if another profile with this name already exists for this user
+    const existingProfile = await Profile.findOne({
+      user: req.user._id,
+      name: name.trim(),
+      _id: { $ne: req.params.id } // Exclude the current profile
+    });
+    
+    if (existingProfile) {
+      return res.status(400).json({
+        success: false,
+        message: 'A profile with this name already exists for your account'
+      });
+    }
+    
     const profile = await Profile.findOneAndUpdate(
-      { _id: req.params.id, owner: req.user._id },
-      { name },
+      { _id: req.params.id, user: req.user._id },
+      { name: name.trim() },
       { new: true, runValidators: true }
     );
     
@@ -181,10 +195,9 @@ exports.updateProfile = async (req, res) => {
 // @access  Private
 exports.deleteProfile = async (req, res) => {
   try {
-    // Find and delete profile
     const profile = await Profile.findOneAndDelete({
       _id: req.params.id,
-      owner: req.user._id
+      user: req.user._id
     });
     
     if (!profile) {

@@ -11,7 +11,7 @@ exports.getMyList = async (req, res) => {
     // Verify profile exists and belongs to user
     const profile = await Profile.findOne({
       _id: profileId,
-      owner: req.user._id
+      user: req.user._id
     }).populate('myList');
     
     if (!profile) {
@@ -62,7 +62,7 @@ exports.addToMyList = async (req, res) => {
     // Verify profile exists and belongs to user
     const profile = await Profile.findOne({
       _id: profileId,
-      owner: req.user._id
+      user: req.user._id
     });
     
     if (!profile) {
@@ -108,7 +108,7 @@ exports.removeFromMyList = async (req, res) => {
     // Verify profile exists and belongs to user
     const profile = await Profile.findOne({
       _id: profileId,
-      owner: req.user._id
+      user: req.user._id
     });
     
     if (!profile) {

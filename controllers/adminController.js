@@ -121,7 +121,7 @@ exports.createLog = async (req, res) => {
   }
 };
 
-// @desc    Get trending content from TMDB
+// @desc    Get trending content from TMDB that's not already in our DB
 // @route   GET /api/admin/tmdb/trending/:type
 // @access  Private/Admin
 exports.getTrendingContent = async (req, res) => {
@@ -137,13 +137,32 @@ exports.getTrendingContent = async (req, res) => {
     }
     
     // Use the existing TMDB_API_KEY and make a request directly to TMDB
-    // This avoids unnecessarily storing content in our DB just for browsing
     const TMDB_API_KEY = process.env.TMDB_API_KEY;
-    const response = await axios.get(`https://api.themoviedb.org/3/trending/${type}/week?api_key=${TMDB_API_KEY}`);
     
+    // Get more results (we'll fetch up to 2 pages from TMDB to ensure enough new content)
+    const response1 = await axios.get(`https://api.themoviedb.org/3/trending/${type}/week?api_key=${TMDB_API_KEY}&page=1`);
+    const response2 = await axios.get(`https://api.themoviedb.org/3/trending/${type}/week?api_key=${TMDB_API_KEY}&page=2`);
+    
+    // Combine results from both pages
+    const allResults = [...response1.data.results, ...response2.data.results];
+    
+    // Get all TMDB IDs for this content type that already exist in our database
+    const existingContent = await Content.find({ type }, { tmdbId: 1, _id: 0 });
+    const existingTmdbIds = existingContent.map(content => content.tmdbId);
+    
+    // Filter out content that already exists in our database
+    const newContent = allResults.filter(item => !existingTmdbIds.includes(item.id));
+    
+    // Limit to 30 items if we have that many
+    const limitedContent = newContent.slice(0, 30);
+    
+    // Return only content that doesn't already exist in our DB
     res.status(200).json({
       success: true,
-      data: response.data.results
+      total: newContent.length,
+      displayed: limitedContent.length,
+      data: limitedContent,
+      message: newContent.length === 0 ? 'All trending content is already in your database!' : null
     });
   } catch (error) {
     console.error('Error fetching trending content:', error);
@@ -154,7 +173,7 @@ exports.getTrendingContent = async (req, res) => {
   }
 };
 
-// @desc    Search TMDB for content
+// @desc    Search TMDB for content not in our DB
 // @route   GET /api/admin/tmdb/search
 // @access  Private/Admin
 exports.searchContent = async (req, res) => {
@@ -176,13 +195,33 @@ exports.searchContent = async (req, res) => {
       });
     }
     
-    // Similar to trending, we'll search TMDB directly without storing results
+    // Similar to trending, we'll search TMDB and get multiple pages if needed
     const TMDB_API_KEY = process.env.TMDB_API_KEY;
-    const response = await axios.get(`https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`);
+    const response1 = await axios.get(`https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=1`);
+    
+    // If first page doesn't have enough results, get a second page
+    let allResults = [...response1.data.results];
+    if (response1.data.total_pages > 1 && response1.data.results.length < 20) {
+      const response2 = await axios.get(`https://api.themoviedb.org/3/search/${type}?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=2`);
+      allResults = [...allResults, ...response2.data.results];
+    }
+    
+    // Get all TMDB IDs for this content type that already exist in our database
+    const existingContent = await Content.find({ type }, { tmdbId: 1, _id: 0 });
+    const existingTmdbIds = existingContent.map(content => content.tmdbId);
+    
+    // Filter out content that already exists in our database
+    const newContent = allResults.filter(item => !existingTmdbIds.includes(item.id));
+    
+    // Limit to 30 items if we have that many
+    const limitedContent = newContent.slice(0, 30);
     
     res.status(200).json({
       success: true,
-      data: response.data.results
+      total: newContent.length,
+      displayed: limitedContent.length,
+      data: limitedContent,
+      message: newContent.length === 0 ? 'All matching content is already in your database!' : null
     });
   } catch (error) {
     console.error('Error searching TMDB:', error);
@@ -226,8 +265,7 @@ exports.importContent = async (req, res) => {
     }
     
     // Use your existing tmdbService to process content
-    // I'm assuming your tmdbService has these methods, based on the file you shared
-    const tmdbService = require('../services/tmdbService');
+    const { transformMovieData, transformTvData } = require('../services/tmdbService');
     
     let content;
     // Use the appropriate transformer function based on content type
@@ -236,14 +274,14 @@ exports.importContent = async (req, res) => {
       const TMDB_API_KEY = process.env.TMDB_API_KEY;
       const movieRes = await axios.get(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${TMDB_API_KEY}`);
       // Transform and save movie data
-      const transformedData = await tmdbService.transformMovieData(movieRes.data);
+      const transformedData = await transformMovieData(movieRes.data);
       content = await Content.create(transformedData);
     } else {
       // Get TV show details from TMDB API
       const TMDB_API_KEY = process.env.TMDB_API_KEY;
       const tvRes = await axios.get(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
       // Transform and save TV data
-      const transformedData = await tmdbService.transformTvData(tvRes.data);
+      const transformedData = await transformTvData(tvRes.data);
       content = await Content.create(transformedData);
     }
     

@@ -19,7 +19,7 @@ exports.createReview = async (req, res) => {
     }
     
     // Check if profile exists and belongs to user
-    const profile = await Profile.findOne({ _id: profileId, owner: req.user._id });
+    const profile = await Profile.findOne({ _id: profileId, user: req.user._id });
     if (!profile) {
       return res.status(404).json({
         success: false,

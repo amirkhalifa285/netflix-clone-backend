@@ -8,9 +8,10 @@ exports.getRecommendations = async (req, res) => {
     const { type, limit = 10 } = req.query;
     
     // Verify profile exists and belongs to the user
+
     const profile = await Profile.findOne({ 
       _id: profileId,
-      owner: req.user._id
+      user: req.user._id
     });
     
     if (!profile) {
