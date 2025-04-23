@@ -20,7 +20,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'https://net-flix-clone-am.netlify.app'], // Replace with your frontend URL
   credentials: true // This allows cookies to be sent cross-origin
 }));
 app.use(express.json());
