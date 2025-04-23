@@ -12,6 +12,7 @@ const profileRoutes = require('./routes/profileRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const myListRoutes = require('./routes/myListRoutes');
 const recommendationRoutes = require('./routes/recommendationRoutes');
+const adminRoutes = require('./routes/adminRoutes'); // Import admin routes
 
 
 // Initialize Express app
@@ -38,6 +39,7 @@ app.use('/api/profiles', profileRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/mylist', myListRoutes);
 app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/admin', adminRoutes); // Mount admin routes
 
 // MongoDB Connection
 const connectDB = async () => {

@@ -381,4 +381,8 @@ const tmdbService = {
   }
 };
 
-module.exports = tmdbService;
+module.exports = {
+  transformMovieData,
+  transformTvData,
+  tmdbService
+};
