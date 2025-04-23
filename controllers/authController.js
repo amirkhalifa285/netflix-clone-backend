@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 
 // Helper function to create and send token
 const sendTokenResponse = (user, statusCode, res, remember = false) => {
-  // Create token
   const token = jwt.sign(
     { id: user._id },
     process.env.JWT_SECRET,
@@ -13,19 +12,16 @@ const sendTokenResponse = (user, statusCode, res, remember = false) => {
   const cookieOptions = {
     expires: remember 
       ? new Date(Date.now() + 60 * 60 * 1000) // 1 hour if "remember me"
-      : new Date(Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000), // From env if not
+      : new Date(Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000), 
     httpOnly: true
   };
 
-  // Set secure flag in production
   if (process.env.NODE_ENV === 'production') {
     cookieOptions.secure = true;
   }
 
-  // Set cookie
   res.cookie('token', token, cookieOptions);
 
-  // Remove password from response
   user.password = undefined;
 
   res.status(statusCode).json({
@@ -42,15 +38,12 @@ exports.register = async (req, res) => {
   try {
     const { email, password, role } = req.body;
 
-    // Validate password
     if (!password || password.length < 8) {
       return res.status(400).json({
         success: false,
         message: 'Password must be at least 8 characters'
       });
     }
-
-    // Check if password has at least one letter and one number
     const hasLetter = /[a-zA-Z]/.test(password);
     const hasNumber = /[0-9]/.test(password);
 
@@ -61,7 +54,6 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Create user
     const user = await User.create({
       email,
       password,
@@ -70,7 +62,6 @@ exports.register = async (req, res) => {
 
     sendTokenResponse(user, 201, res);
   } catch (err) {
-    // Handle duplicate key error
     if (err.code === 11000) {
       const field = Object.keys(err.keyPattern)[0];
       return res.status(400).json({
@@ -93,7 +84,6 @@ exports.login = async (req, res) => {
   try {
     const { email, password, remember } = req.body;
 
-    // Validate email & password
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -101,7 +91,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Check for user
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
@@ -111,7 +100,6 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Check if password matches
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
@@ -134,7 +122,6 @@ exports.login = async (req, res) => {
 // @route   GET /api/auth/logout
 // @access  Private
 exports.logout = (req, res) => {
-  // Clear the cookie by setting it to 'none' and expiring it immediately
   res.cookie('token', 'none', {
     expires: new Date(Date.now() + 10 * 1000), // 10 seconds
     httpOnly: true

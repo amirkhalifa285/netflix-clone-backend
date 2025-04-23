@@ -50,7 +50,6 @@ exports.addToMyList = async (req, res) => {
       });
     }
     
-    // Verify content exists
     const content = await Content.findById(contentId);
     if (!content) {
       return res.status(404).json({
@@ -59,7 +58,6 @@ exports.addToMyList = async (req, res) => {
       });
     }
     
-    // Verify profile exists and belongs to user
     const profile = await Profile.findOne({
       _id: profileId,
       user: req.user._id
@@ -72,7 +70,6 @@ exports.addToMyList = async (req, res) => {
       });
     }
     
-    // Check if content is already in My List
     if (profile.myList.includes(contentId)) {
       return res.status(400).json({
         success: false,
@@ -80,7 +77,6 @@ exports.addToMyList = async (req, res) => {
       });
     }
     
-    // Add content to My List
     profile.myList.push(contentId);
     await profile.save();
     
@@ -105,7 +101,6 @@ exports.removeFromMyList = async (req, res) => {
   try {
     const { profileId, contentId } = req.params;
     
-    // Verify profile exists and belongs to user
     const profile = await Profile.findOne({
       _id: profileId,
       user: req.user._id
@@ -118,7 +113,6 @@ exports.removeFromMyList = async (req, res) => {
       });
     }
     
-    // Check if content is in My List
     if (!profile.myList.includes(contentId)) {
       return res.status(400).json({
         success: false,
@@ -126,7 +120,6 @@ exports.removeFromMyList = async (req, res) => {
       });
     }
     
-    // Remove content from My List
     profile.myList = profile.myList.filter(
       id => id.toString() !== contentId
     );

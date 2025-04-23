@@ -28,7 +28,6 @@ exports.getProfiles = async (req, res) => {
 // @access  Private
 exports.createProfile = async (req, res) => {
   try {
-    // Verify user exists and is authenticated
     if (!req.user || !req.user._id) {
       return res.status(401).json({
         success: false,
@@ -53,7 +52,6 @@ exports.createProfile = async (req, res) => {
       });
     }
     
-    // Check if profile with same name already exists FOR THIS USER
     const existingProfile = await Profile.findOne({
       user: req.user._id,
       name: name.trim()
@@ -145,7 +143,7 @@ exports.updateProfile = async (req, res) => {
     const existingProfile = await Profile.findOne({
       user: req.user._id,
       name: name.trim(),
-      _id: { $ne: req.params.id } // Exclude the current profile
+      _id: { $ne: req.params.id }
     });
     
     if (existingProfile) {
@@ -175,7 +173,6 @@ exports.updateProfile = async (req, res) => {
   } catch (error) {
     console.error('Error updating profile:', error);
     
-    // Check if this is a duplicate key error
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,

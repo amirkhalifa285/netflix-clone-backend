@@ -136,27 +136,21 @@ exports.getTrendingContent = async (req, res) => {
       });
     }
     
-    // Use the existing TMDB_API_KEY and make a request directly to TMDB
+
     const TMDB_API_KEY = process.env.TMDB_API_KEY;
     
-    // Get more results (we'll fetch up to 2 pages from TMDB to ensure enough new content)
     const response1 = await axios.get(`https://api.themoviedb.org/3/trending/${type}/week?api_key=${TMDB_API_KEY}&page=1`);
     const response2 = await axios.get(`https://api.themoviedb.org/3/trending/${type}/week?api_key=${TMDB_API_KEY}&page=2`);
     
-    // Combine results from both pages
     const allResults = [...response1.data.results, ...response2.data.results];
     
-    // Get all TMDB IDs for this content type that already exist in our database
     const existingContent = await Content.find({ type }, { tmdbId: 1, _id: 0 });
     const existingTmdbIds = existingContent.map(content => content.tmdbId);
     
-    // Filter out content that already exists in our database
     const newContent = allResults.filter(item => !existingTmdbIds.includes(item.id));
     
-    // Limit to 30 items if we have that many
     const limitedContent = newContent.slice(0, 30);
     
-    // Return only content that doesn't already exist in our DB
     res.status(200).json({
       success: true,
       total: newContent.length,
@@ -264,11 +258,9 @@ exports.importContent = async (req, res) => {
       });
     }
     
-    // Use your existing tmdbService to process content
     const { transformMovieData, transformTvData } = require('../services/tmdbService');
     
     let content;
-    // Use the appropriate transformer function based on content type
     if (type === 'movie') {
       // Get movie details from TMDB API
       const TMDB_API_KEY = process.env.TMDB_API_KEY;
@@ -312,9 +304,6 @@ exports.importContent = async (req, res) => {
 // @access  Private/Admin
 exports.getStats = async (req, res) => {
   try {
-    // This would be implemented to provide admin dashboard statistics
-    // For example, count of users, content, reviews, etc.
-    
     res.status(200).json({
       success: true,
       message: 'Stats endpoint - to be implemented'

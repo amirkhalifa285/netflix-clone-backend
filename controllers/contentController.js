@@ -2,7 +2,6 @@ const Content = require('../models/Content');
 const tmdbService = require('../services/tmdbService');
 const Review = require('../models/Review'); 
 
-// Helper function to get content with reviews aggregation
 const getContentWithReviews = async (query = {}, limit = 10) => {
   return await Content.aggregate([
     { $match: query },
@@ -129,7 +128,6 @@ exports.getMostReviewedContent = async (req, res) => {
     const query = type ? { type } : {};
     const mostReviewedContent = await getContentWithReviews(query, parseInt(limit));
     
-    // Sort by review count
     mostReviewedContent.sort((a, b) => b.reviewCount - a.reviewCount);
     
     res.status(200).json({
@@ -270,7 +268,6 @@ exports.getUserReviewedContent = async (req, res) => {
     const userId = req.user._id;
     const { limit = 10 } = req.query;
     
-    // Find user's reviews and join with content
     const userReviews = await Review.find({ user: userId })
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))

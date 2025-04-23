@@ -9,7 +9,6 @@ exports.createReview = async (req, res) => {
   try {
     const { contentId, profileId, rating, review, isPublic } = req.body;
     
-    // Check if content exists
     const content = await Content.findById(contentId);
     if (!content) {
       return res.status(404).json({
@@ -18,7 +17,6 @@ exports.createReview = async (req, res) => {
       });
     }
     
-    // Check if profile exists and belongs to user
     const profile = await Profile.findOne({ _id: profileId, user: req.user._id });
     if (!profile) {
       return res.status(404).json({
@@ -27,7 +25,6 @@ exports.createReview = async (req, res) => {
       });
     }
     
-    // Check if user already has a review for this content with this profile
     const existingReview = await Review.findOne({
       user: req.user._id,
       profile: profileId,
@@ -41,7 +38,6 @@ exports.createReview = async (req, res) => {
       });
     }
     
-    // Create review
     const newReview = await Review.create({
       user: req.user._id,
       profile: profileId,
@@ -71,11 +67,9 @@ exports.getUserReviews = async (req, res) => {
   try {
     const { profileId } = req.query;
     
-    // Create query
     const query = { user: req.user._id };
     if (profileId) query.profile = profileId;
     
-    // Get reviews with populated content
     const reviews = await Review.find(query)
       .sort({ createdAt: -1 })
       .populate('content', 'title posterPath type releaseDate')
@@ -102,7 +96,6 @@ exports.getContentReviews = async (req, res) => {
   try {
     const { contentId } = req.params;
     
-    // Get public reviews for the content
     const publicReviews = await Review.find({
       content: contentId,
       isPublic: true
@@ -110,7 +103,6 @@ exports.getContentReviews = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate('profile', 'name avatar');
     
-    // Get user's private reviews if any
     const userPrivateReviews = await Review.find({
       content: contentId,
       user: req.user._id,
@@ -119,7 +111,6 @@ exports.getContentReviews = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate('profile', 'name avatar');
     
-    // Combine reviews
     const allReviews = [...publicReviews, ...userPrivateReviews];
     
     res.status(200).json({
@@ -143,7 +134,6 @@ exports.updateReview = async (req, res) => {
   try {
     const { rating, review, isPublic } = req.body;
     
-    // Find review
     const existingReview = await Review.findById(req.params.id);
     
     if (!existingReview) {
@@ -153,7 +143,6 @@ exports.updateReview = async (req, res) => {
       });
     }
     
-    // Check if review belongs to user
     if (existingReview.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -161,7 +150,6 @@ exports.updateReview = async (req, res) => {
       });
     }
     
-    // Update review fields
     if (rating !== undefined) existingReview.rating = rating;
     if (review !== undefined) existingReview.review = review;
     if (isPublic !== undefined) existingReview.isPublic = isPublic;
@@ -188,7 +176,6 @@ exports.updateReview = async (req, res) => {
 // @access  Private
 exports.deleteReview = async (req, res) => {
   try {
-    // Find review
     const review = await Review.findById(req.params.id);
     
     if (!review) {
@@ -198,7 +185,6 @@ exports.deleteReview = async (req, res) => {
       });
     }
     
-    // Check if review belongs to user
     if (review.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -206,7 +192,6 @@ exports.deleteReview = async (req, res) => {
       });
     }
     
-    // Delete review
     await review.remove();
     
     res.status(200).json({
